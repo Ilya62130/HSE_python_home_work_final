@@ -1,13 +1,8 @@
-import json
-import matplotlib
-import pandas
-import requests
-import seaborn 
+import pandas as pd
 from configparser import ConfigParser
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
-
+from enum import Enum
 
 
 @dataclass(frozen=True)
@@ -33,6 +28,30 @@ class VulnersConfiguration:
     url_host_audit: str = ""
 
 @dataclass(frozen=True)
+class SuricataConfiguration:
+    """Хранит путь до журнала Suricata."""
+
+    path_to_eve_log: str = ""
+    
+
+class LogColumnName(str, Enum):
+    """Перечисляет имена используемых столбцов журнала Suricata."""
+
+    TIMESTAMP = "timestamp"
+    FLOW_ID = "flow_id"
+    EVENT_TYPE = "event_type"
+    SOURCE_IP = "src_ip"
+    SOURCE_PORT = "src_port"
+    DESTINATION_IP = "dest_ip"
+    DESTINATION_PORT = "dest_port"
+    PROTOCOL = "proto"
+    HTTP = "http"
+    ALERT = "alert"
+    DNS = "dns"
+    FLOW = "flow"
+
+
+@dataclass(frozen=True)
 class Configuration:
     """Загружает и хранит неизменяемую конфигурацию приложения."""
 
@@ -42,7 +61,10 @@ class Configuration:
     vulners: VulnersConfiguration = field(
         default_factory=VulnersConfiguration
     )
-
+    suricata: SuricataConfiguration = field(
+        default_factory=SuricataConfiguration
+    )
+    
     def __post_init__(self) -> None:
         """Загружает параметры из config.ini во время создания объекта."""
         config_path = Path(__file__).with_name("config.ini")
@@ -74,9 +96,16 @@ class Configuration:
                 "URL_HOST_AUDIT_VULNERS"
             ),
         )
+        suricata = SuricataConfiguration(
+            path_to_eve_log=config.get(
+                "suricata",
+                "PATH_TO_EVE_LOG"
+            )
+        )
 
         object.__setattr__(self, "virustotal", virustotal)
         object.__setattr__(self, "vulners", vulners)
+        object.__setattr__(self, "suricata", suricata)
 
     def __str__(self) -> str:
         """Возвращает параметры конфигурации в удобочитаемом виде."""
@@ -99,9 +128,48 @@ class Configuration:
             f"    CVE audit URL: {vulners.url_cve_audit}\n"
             f"    CVE list audit URL: {vulners.url_cves_audit}\n"
             f"    Software audit URL: {vulners.url_software_audit}\n"
-            f"    Host audit URL: {vulners.url_host_audit}"
+            f"    Host audit URL: {vulners.url_host_audit}\n"
+            "  Suricata:\n"
+            f"    EVE log: {self.suricata.path_to_eve_log}"
         )
 
+class SuricataLogReader:
+    """Читает журнал и предоставляет исходные события."""
+
+    def __init__(self, path_suricata_log: str) -> None:
+        """Формирует путь до журнала и загружает его при создании объекта."""
+        log_path = Path(path_suricata_log)
+        project_path = Path(__file__).resolve().parent
+
+        if not log_path.is_absolute():
+            log_path = project_path / log_path
+
+        if not log_path.is_file():
+            raise FileNotFoundError(
+                f"Не найден журнал Suricata: {log_path}"
+            )
+
+        self._path_suricata_log = log_path
+        self._dataframe_log = self._read_events()
+
+    def _read_events(self) -> pd.DataFrame:
+        """Читает JSON Lines-журнал и возвращает таблицу pandas."""
+        return pd.read_json(
+            self._path_suricata_log,
+            lines=True,
+            encoding="utf-8"
+        )
+
+    @property
+    def path_suricata_log(self) -> Path:
+        """Возвращает абсолютный путь до журнала Suricata."""
+        return self._path_suricata_log
+
+    @property
+    def dataframe_log_copy(self) -> pd.DataFrame:
+        """Возвращает копию журнала Suricata в виде таблицы pandas."""
+        return self._dataframe_log.copy()
+    
 if __name__ == "__main__":
     config = Configuration()
     print(config)

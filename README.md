@@ -94,6 +94,9 @@ URL_CVE_AUDIT_VULNERS = https://vulners.com/api/v4/audit/cve
 URL_CVES_AUDIT_VULNERS = https://vulners.com/api/v4/audit/cves
 URL_SOFTWARE_AUDIT_VULNERS = https://vulners.com/api/v3/burp/softwareapi
 URL_HOST_AUDIT_VULNERS = https://vulners.com/api/v3/audit/host
+
+[suricata]
+PATH_TO_EVE_LOG = data/example_events.json
 ```
 
 Ключи вставляются без кавычек.
